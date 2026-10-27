@@ -301,13 +301,7 @@ def triage_cases(d1, d2, shift, level, limit=200):
         select e.vn, e.enter_er_time arrived, {D2D} d2d,
           {_SOURCES[0]} start_min, {_SOURCES[1]} lab_min,
           {_SOURCES[2]} xray_min, {_SOURCES[3]} drug_min,
-          case
-            when pt.birthday is null then 'ไม่ระบุ'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 14 then '0-14 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 40 then '15-40 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 60 then '41-60 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 80 then '61-80 ปี'
-            else 'มากกว่า 80 ปี' end age_group,
+          timestampdiff(year, pt.birthday, e.vstdate) age,
           case pt.sex when '1' then 'ชาย' when '2' then 'หญิง' else 'ไม่ระบุ' end sex,
           d.icd10 dx_code, ifnull(nullif(c.tname, ''), ifnull(c.name, d.icd10)) dx_name,
           case when {_HPI_LIKE} then replace(replace(replace(sc.hpi, char(13), ' '), char(10), ' '),
@@ -329,7 +323,7 @@ def triage_cases(d1, d2, shift, level, limit=200):
         d2d = min(num(x) for x in candidates) if candidates else None
         out.append({
             "_vn": str(r["vn"]), "arrived": arrived.isoformat(sep=" ", timespec="minutes"),
-            "age_group": r["age_group"], "sex": r["sex"],
+            "age": (None if r.get("age") is None else int(num(r["age"]))), "sex": r["sex"],
             "dx_code": r.get("dx_code") or "–", "dx_name": r.get("dx_name") or "ยังไม่ลงรหัส",
             "d2d": d2d, "target": D2D_TARGET[level],
             "events": {**mins, "hpi_min": hpi_min},
