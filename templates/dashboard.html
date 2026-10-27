@@ -629,7 +629,7 @@
         var ev=eventTag('เริ่มตรวจ',x.events.start_min)+eventTag('Lab',x.events.lab_min)
           +eventTag('X-ray',x.events.xray_min)+eventTag('ยา',x.events.drug_min)+eventTag('รายงานแพทย์',x.events.hpi_min);
         return '<tr><td><code>'+esc(x.case_id)+'</code></td><td>'+esc(x.arrived)+'</td>'
-          +'<td>'+esc(x.age_group)+' · '+esc(x.sex)+'</td><td><b>'+esc(x.dx_code)+'</b><br>'+esc(x.dx_name)+'</td>'
+          +'<td>'+(x.age==null?'ไม่ระบุอายุ':esc(x.age)+' ปี')+' · '+esc(x.sex)+'</td><td><b>'+esc(x.dx_code)+'</b><br>'+esc(x.dx_name)+'</td>'
           +'<td class="'+(slow?'case-slow':'case-ok')+'">'+(x.d2d==null?'ไม่มีเวลาบันทึก':esc(x.d2d)+' นาที')+'</td>'
           +'<td>'+(ev||'ไม่มีหลักฐานเวลา')+'</td></tr>';
       }).join('');
