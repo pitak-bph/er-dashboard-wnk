@@ -289,6 +289,55 @@ def triage(d1, d2, shift):
     return {"total": total, "items": items, "missing": missing, "missing_pct": _pct(missing, total + missing)}
 
 
+
+def triage_cases(d1, d2, shift, level, limit=200):
+    """เคสที่รอนานที่สุดสำหรับวิเคราะห์ workflow; VN ใช้ภายในเซิร์ฟเวอร์และต้องถูกตัดก่อนตอบ API"""
+    level = int(level)
+    if level not in range(1, 6):
+        raise ValueError("invalid triage level")
+    limit = max(1, min(int(limit), 200))
+    w = f"{_where(d1, d2, shift)} and {LEVEL} = {level}"
+    rows = fetch(f"""
+        select e.vn, e.enter_er_time arrived, {D2D} d2d,
+          {_SOURCES[0]} start_min, {_SOURCES[1]} lab_min,
+          {_SOURCES[2]} xray_min, {_SOURCES[3]} drug_min,
+          case
+            when pt.birthday is null then 'ไม่ระบุ'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 14 then '0–14 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 40 then '15–40 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 60 then '41–60 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 80 then '61–80 ปี'
+            else 'มากกว่า 80 ปี' end age_group,
+          case pt.sex when '1' then 'ชาย' when '2' then 'หญิง' else 'ไม่ระบุ' end sex,
+          d.icd10 dx_code, ifnull(nullif(c.tname, ''), ifnull(c.name, d.icd10)) dx_name,
+          case when {_HPI_LIKE} then replace(replace(replace(sc.hpi, char(13), ' '), char(10), ' '),
+                                             char(9), ' ') end hpi
+        {FROM_ST}
+          join patient pt on pt.hn = o.hn
+          left join ovstdiag d on d.vn = e.vn and d.diagtype = '1'
+          left join icd101 c on c.code = d.icd10
+          left join opdscreen sc on sc.vn = e.vn
+        {w}
+        order by d2d is null, d2d desc limit {limit}""")
+    out = []
+    for r in rows:
+        arrived = _dt(r["arrived"])
+        mins = {k: (None if r.get(k) in (None, "") else num(r[k]))
+                for k in ("start_min", "lab_min", "xray_min", "drug_min")}
+        hpi_min = hpi_minutes(arrived, r.get("hpi")) if r.get("hpi") else None
+        candidates = [x for x in [r.get("d2d"), hpi_min] if x not in (None, "")]
+        d2d = min(num(x) for x in candidates) if candidates else None
+        out.append({
+            "_vn": str(r["vn"]), "arrived": arrived.isoformat(sep=" ", timespec="minutes"),
+            "age_group": r["age_group"], "sex": r["sex"],
+            "dx_code": r.get("dx_code") or "–", "dx_name": r.get("dx_name") or "ยังไม่ลงรหัส",
+            "d2d": d2d, "target": D2D_TARGET[level],
+            "events": {**mins, "hpi_min": hpi_min},
+        })
+    out.sort(key=lambda x: (x["d2d"] is None, -(x["d2d"] or 0)))
+    return {"level": level, "name": LEVEL_NAME[level], "target": D2D_TARGET_LABEL[level],
+            "items": out, "limited": len(out) >= limit}
+
 # ------------------------------------------------------ 4. Disposition
 
 #: er_dch_type ของ HOSxP — เสียชีวิต (4, 6) รวมใน "อื่น ๆ" ตามที่ตกลงไว้ว่าไม่แสดงบนแดชบอร์ด
