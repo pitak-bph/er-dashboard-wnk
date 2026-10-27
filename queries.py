@@ -303,10 +303,10 @@ def triage_cases(d1, d2, shift, level, limit=200):
           {_SOURCES[2]} xray_min, {_SOURCES[3]} drug_min,
           case
             when pt.birthday is null then 'ไม่ระบุ'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 14 then '0–14 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 40 then '15–40 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 60 then '41–60 ปี'
-            when timestampdiff(year, pt.birthday, e.vstdate) <= 80 then '61–80 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 14 then '0-14 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 40 then '15-40 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 60 then '41-60 ปี'
+            when timestampdiff(year, pt.birthday, e.vstdate) <= 80 then '61-80 ปี'
             else 'มากกว่า 80 ปี' end age_group,
           case pt.sex when '1' then 'ชาย' when '2' then 'หญิง' else 'ไม่ระบุ' end sex,
           d.icd10 dx_code, ifnull(nullif(c.tname, ''), ifnull(c.name, d.icd10)) dx_name,
