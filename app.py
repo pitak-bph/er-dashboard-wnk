@@ -172,9 +172,11 @@ def api_triage_cases():
     d1, d2, shift = _params()
     try:
         level = int(request.args.get("level", "0"))
-        data = queries.triage_cases(d1, d2, shift, level)
     except (TypeError, ValueError):
         return jsonify({"error": "invalid_level"}), 400
+    if level not in range(1, 6):
+        return jsonify({"error": "invalid_level"}), 400
+    data = queries.triage_cases(d1, d2, shift, level)
     for item in data["items"]:
         vn = item.pop("_vn")
         item["case_id"] = hashlib.sha256(
