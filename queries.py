@@ -301,13 +301,14 @@ def triage_cases(d1, d2, shift, level, limit=200):
         select e.vn, e.enter_er_time arrived, {D2D} d2d,
           {_SOURCES[0]} start_min, {_SOURCES[1]} lab_min,
           {_SOURCES[2]} xray_min, {_SOURCES[3]} drug_min,
-          timestampdiff(year, pt.birthday, e.vstdate) age,
+          vs.age_y age,
           case pt.sex when '1' then 'ชาย' when '2' then 'หญิง' else 'ไม่ระบุ' end sex,
           d.icd10 dx_code, ifnull(nullif(c.tname, ''), ifnull(c.name, d.icd10)) dx_name,
           case when {_HPI_LIKE} then replace(replace(replace(sc.hpi, char(13), ' '), char(10), ' '),
                                              char(9), ' ') end hpi
         {FROM_ST}
           join patient pt on pt.hn = o.hn
+          left join vn_stat vs on vs.vn = e.vn
           left join ovstdiag d on d.vn = e.vn and d.diagtype = '1'
           left join icd101 c on c.code = d.icd10
           left join opdscreen sc on sc.vn = e.vn
