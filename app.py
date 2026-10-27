@@ -164,6 +164,27 @@ def api_data():
     return jsonify(queries.build(d1, d2, shift))
 
 
+@app.route("/api/triage-cases.json")
+def api_triage_cases():
+    """รายละเอียดรายเคสแบบใช้นามแฝง; ปิดไว้จนกว่าจะผ่านรหัสรายงานภายใน"""
+    if not _np_ok():
+        return jsonify({"error": "login_required", "login": url_for("nurse_login")}), 401
+    d1, d2, shift = _params()
+    try:
+        level = int(request.args.get("level", "0"))
+        data = queries.triage_cases(d1, d2, shift, level)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid_level"}), 400
+    for item in data["items"]:
+        vn = item.pop("_vn")
+        item["case_id"] = hashlib.sha256(
+            (app.secret_key + ":triage:" + vn).encode()
+        ).hexdigest()[:10].upper()
+    response = jsonify(data)
+    response.headers["Cache-Control"] = "no-store, private"
+    return response
+
+
 def _fy_start(today=None):
     today = today or date.today()
     return date(today.year - (0 if today.month >= 10 else 1), 10, 1)
