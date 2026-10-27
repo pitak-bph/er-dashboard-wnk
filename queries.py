@@ -38,7 +38,7 @@ def _shift_case(col):
 
 
 SHIFT_CASE = _shift_case("e.enter_er_time")
-LEVEL = "coalesce(e.er_emergency_level_id, least(et.export_code, 5), 5)"
+LEVEL = "coalesce(least(et.export_code, 5), 5)"
 TRAUMA = "exists(select 1 from ovstdiag x where x.vn = e.vn and x.icd10 regexp '^[STV]')"
 SVC = "ifnull(e.er_pt_type, 0) = 4"
 
@@ -79,7 +79,7 @@ FROM_ST = FROM + "left join service_time s on s.vn = e.vn "
 
 #: ลงทะเบียนเข้า ER แต่ ER ไม่ได้คัดกรอง (ไม่มีระดับความเร่งด่วนหรือประเภทผู้ป่วย) = ส่งมาผิด ไม่นับทุกบล็อก
 #: (รพ.วังน้ำเขียว ~30 ราย/เดือน เกือบทั้งหมดไม่มีผลการจำหน่ายจาก ER)
-SCREENED = "e.er_emergency_level_id is not null and e.er_pt_type is not null"
+SCREENED = "e.er_emergency_type is not null and e.er_pt_type is not null"
 
 
 def _no_z(alias):
@@ -93,7 +93,7 @@ ELIG = f"(not {SVC} and ifnull(o.ovstist, '') <> '02' and {_no_z('e')})"
 #: กลับมา ER ซ้ำภายใน 48 ชม. หลัง ER visit ก่อนหน้าที่เข้าเกณฑ์เดียวกัน
 REVISIT = ("exists(select 1 from ovst po join er_regist p on p.vn = po.vn "
            "where po.hn = o.hn and p.vn <> e.vn and ifnull(p.er_pt_type, 0) <> 4 "
-           "and p.er_emergency_level_id is not null and ifnull(po.ovstist, '') <> '02' "
+           "and p.er_emergency_type is not null and ifnull(po.ovstist, '') <> '02' "
            f"and {_no_z('p')} "
            "and po.vstdate between e.vstdate - interval 2 day and e.vstdate "
            "and p.enter_er_time < e.enter_er_time "
