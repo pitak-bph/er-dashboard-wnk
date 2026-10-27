@@ -39,11 +39,19 @@ def _shift_case(col):
 
 SHIFT_CASE = _shift_case("e.enter_er_time")
 LEVEL = "coalesce(least(et.export_code, 5), 5)"
+#: แปลงผลจำหน่ายของ รพ.บางปะหันจาก er_leave_status เป็นรหัสกลางที่ Dashboard ใช้
+#: 1=กลับบ้าน · 2=Refer · 3=Admit · 4=เสียชีวิต/อื่น ๆ · 5=Observe
+DCH = ("case when e.er_leave_status_id = 1 then 3 "
+       "when e.er_leave_status_id in (2, 3) then 2 "
+       "when e.er_leave_status_id = 5 then 5 "
+       "when e.er_leave_status_id in (4, 6) then 1 "
+       "when e.er_leave_status_id in (7, 8) then 4 end")
 TRAUMA = "exists(select 1 from ovstdiag x where x.vn = e.vn and x.icd10 regexp '^[STV]')"
 SVC = "ifnull(e.er_pt_type, 0) = 4"
 
 FROM = ("from er_regist e join ovst o on o.vn = e.vn "
-        "left join er_emergency_type et on et.er_emergency_type = e.er_emergency_type ")
+        "left join er_emergency_type et on et.er_emergency_type = e.er_emergency_type "
+        "left join er_leave_status els on els.er_leave_status_id = e.er_leave_status_id ")
 
 # ---- เวลาพบแพทย์ = "การกระทำแรกของแพทย์" คือเวลาที่เร็วที่สุดของ
 #   กดเริ่มตรวจ (service_time.service5) · สั่ง Lab (lab_head) · สั่ง X-ray (xray_report) · สั่งยา (opitemrece+drugitems)
@@ -185,7 +193,7 @@ def _visits(d1, d2, shift):
             return ent["rows"]
         rows = []
         for r in fetch(f"""
-            select {LEVEL} lvl, e.er_dch_type dch, {D2D} d2d, {ELIG} elig, ({ELIG} and {REVISIT}) rv,
+            select {LEVEL} lvl, {DCH} dch, {D2D} d2d, {ELIG} elig, ({ELIG} and {REVISIT}) rv,
               e.enter_er_time t,
               case when {_HPI_LIKE} then replace(replace(replace(sc.hpi, char(13), ' '), char(10), ' '),
                                                  char(9), ' ') end hpi
@@ -243,7 +251,7 @@ def visit_trend(d2, shift, months=9):
     last = (end + timedelta(days=31)).replace(day=1) - timedelta(days=1)
     rows = fetch(f"""
         select date_format(e.vstdate, '%Y-%m') ym, count(*) n, sum({TRAUMA}) tr,
-               sum(e.er_dch_type = 3) admit
+               sum({DCH} = 3) admit
         {FROM} {_where(start.isoformat(), last.isoformat(), shift)} group by ym""")
     by = {r["ym"]: r for r in rows}
     out, cur = [], start
@@ -295,7 +303,7 @@ DISPOSITION = [
 
 
 def disposition(d1, d2, shift):
-    rows = fetch(f"select e.er_dch_type t, count(*) n from er_regist e {_where(d1, d2, shift)} group by t")
+    rows = fetch(f"select {DCH} t, count(*) n from er_regist e {_where(d1, d2, shift)} group by t")
     by = {int(num(r["t"], -1)): num(r["n"]) for r in rows}
     total = sum(by.values())
     items = []
@@ -351,7 +359,7 @@ def shift_load(d1, d2):
     """ทุกเวรเสมอ (ไม่ขึ้นกับตัวกรองเวร) · admit/refer นับตามเวลาเข้า ER"""
     rows = fetch(f"""
         select {SHIFT_CASE} sh, count(*) n, sum({LEVEL} <= 2) l12, sum({TRAUMA}) tr,
-               sum(e.er_dch_type = 3) admit, sum(e.er_dch_type = 2) refer,
+               sum({DCH} = 3) admit, sum({DCH} = 2) refer,
                sum(o.ovstist in ('04', '06')) ems
         {FROM} {_where(d1, d2, 'all')} group by sh""")
     by = {r["sh"]: r for r in rows}
@@ -377,13 +385,13 @@ def time_to_disposition(d1, d2, shift):
     a = fetch_one(f"""
         select count(*) n, avg(m) m, sum(m > {BOARDING_MIN}) over_n from (
           select timestampdiff(minute, e.enter_er_time, timestamp(i.regdate, i.regtime)) m
-          from er_regist e join ipt i on i.vn = e.vn {w} and e.er_dch_type = 3 and i.regtime is not null
+          from er_regist e join ipt i on i.vn = e.vn {w} and {DCH} = 3 and i.regtime is not null
         ) x where m between 0 and 1440""")
     r = fetch_one(f"""
         select count(*) n, avg(m) m, sum(m > {BOARDING_MIN}) over_n from (
           select timestampdiff(minute, e.enter_er_time,
                  (select min(timestamp(r.refer_date, r.refer_time)) from referout r where r.vn = e.vn)) m
-          from er_regist e {w} and e.er_dch_type = 2
+          from er_regist e {w} and {DCH} = 2
         ) x where m between 0 and 1440""")
 
     def pack(x):
@@ -450,10 +458,10 @@ def quality(d1, d2, shift):
     r = fetch_one(f"""
         select count(*) n,
           sum(o.ovstist = '04') ems_als, sum(o.ovstist = '06') ems_fr, sum(o.ovstist = '03') refer_in,
-          sum(e.er_dch_type in (7, 8)) ama, sum(e.er_dch_type = 7) refuse, sum(e.er_dch_type = 8) escape,
+          sum({DCH} in (7, 8)) ama, sum({DCH} = 7) refuse, sum({DCH} = 8) escape,
           sum(not exists(select 1 from ovstdiag d where d.vn = e.vn and d.diagtype = '1')) no_pdx,
-          sum(e.er_dch_type is null) no_dch,
-          sum({LEVEL} = 1 and e.er_dch_type in (2, 3)) l1_ar, sum({LEVEL} = 1) l1
+          sum({DCH} is null) no_dch,
+          sum({LEVEL} = 1 and {DCH} in (2, 3)) l1_ar, sum({LEVEL} = 1) l1
         {FROM} {_where(d1, d2, shift)}""")
     n = num(r.get("n"))
     v = {k: num(x) for k, x in r.items()}
@@ -475,7 +483,7 @@ def refer_destinations(d1, d2, shift, limit=5):
         select r.refer_hospcode hc, h.name, count(distinct e.vn) n
         from er_regist e join referout r on r.vn = e.vn
              left join hospcode h on h.hospcode = r.refer_hospcode
-        {_where(d1, d2, shift)} and e.er_dch_type = 2
+        {_where(d1, d2, shift)} and {DCH} = 2
         group by r.refer_hospcode, h.name order by n desc""")
     items = [{"label": x["name"] or x["hc"] or "ไม่ระบุ", "code": x["hc"] or "-", "value": num(x["n"])}
              for x in rows]
@@ -509,9 +517,9 @@ def top_dx_by_dch(d1, d2, shift, dch_type, limit=10):
         select d.icd10 code, ifnull(nullif(c.tname, ''), c.name) name, count(distinct e.vn) n
         from er_regist e join ovstdiag d on d.vn = e.vn and d.diagtype = '1'
              left join icd101 c on c.code = d.icd10
-        {w} and e.er_dch_type = {int(dch_type)}
+        {w} and {DCH} = {int(dch_type)}
         group by d.icd10, name order by n desc limit {int(limit)}""")
-    total = num(fetch_one(f"select count(*) c from er_regist e {w} and e.er_dch_type = {int(dch_type)}").get("c"))
+    total = num(fetch_one(f"select count(*) c from er_regist e {w} and {DCH} = {int(dch_type)}").get("c"))
     return _rank(rows, total, limit)
 
 
@@ -547,7 +555,7 @@ def from_opd(d1, d2, shift, limit=5):
     excl = ", ".join(f"'{c}'" for c in (ER_DEPCODE,) + NOT_DEPT)
     rows = fetch(f"""
         select o.main_dep dep, k.department name, count(*) n, sum({LEVEL} <= 2) l12,
-               sum(e.er_dch_type in (2, 3)) ar
+               sum({DCH} in (2, 3)) ar
         {FROM} left join kskdepartment k on k.depcode = o.main_dep
         {_where(d1, d2, shift)} and o.main_dep is not null and o.main_dep not in ({excl})
         group by o.main_dep, k.department order by n desc""")
@@ -576,12 +584,12 @@ def red_over(d1, d2, shift):
     r = fetch_one(f"""
         select count(*) n, sum(m > {RED_MAX_MIN}) over_n, avg(m) avg_m, max(m) max_m,
                sum(dch = 3 and m > {RED_MAX_MIN}) over_admit, sum(dch = 2 and m > {RED_MAX_MIN}) over_refer
-        from (select e.er_dch_type dch,
-                case when e.er_dch_type = 3 then timestampdiff(minute, e.enter_er_time,
+        from (select {DCH} dch,
+                case when {DCH} = 3 then timestampdiff(minute, e.enter_er_time,
                        (select min(timestamp(i.regdate, i.regtime)) from ipt i where i.vn = e.vn))
                      else timestampdiff(minute, e.enter_er_time,
                        (select min(timestamp(x.refer_date, x.refer_time)) from referout x where x.vn = e.vn)) end m
-              {FROM} {_where(d1, d2, shift)} and {LEVEL} = 1 and e.er_dch_type in (2, 3)) t
+              {FROM} {_where(d1, d2, shift)} and {LEVEL} = 1 and {DCH} in (2, 3)) t
         where m between 0 and 1440""")
     n, over = num(r.get("n")), num(r.get("over_n"))
     return {"n": n, "over": over, "pct": _pct(over, n), "avg": round(num(r.get("avg_m"))),
@@ -611,7 +619,7 @@ def mass_casualty(d1, d2, shift):
     """ผู้บาดเจ็บสาเหตุกลุ่มเดียวกัน ≥ MCI_MIN ราย เข้า ER ภายใน MCI_WINDOW นาที (หน้าต่างเลื่อน)"""
     rows = fetch(f"""
         select t, lvl, dch, c, {_CAUSE_GROUP} g from (
-          select e.enter_er_time t, {LEVEL} lvl, e.er_dch_type dch,
+          select e.enter_er_time t, {LEVEL} lvl, {DCH} dch,
             (select min(left(d.icd10, 3)) from ovstdiag d where d.vn = e.vn and d.icd10 regexp '^[V-Y]') c
           {FROM} {_where(d1, d2, shift)} and not {SVC}) x
         where c is not null order by t""")
