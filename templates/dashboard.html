@@ -14,6 +14,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ER Dashboard">
 <meta name="mobile-web-app-capable" content="yes">
+<style>
+  .triage-row{cursor:pointer}.triage-row:hover{background:#fff4f4}.triage-row:focus{outline:2px solid #ef4444;outline-offset:-2px}
+  .case-modal[hidden]{display:none}.case-modal{position:fixed;inset:0;z-index:9999;background:#0009;display:flex;align-items:center;justify-content:center;padding:20px}
+  .case-dialog{background:#fff;border-radius:16px;width:min(1180px,96vw);max-height:90vh;overflow:auto;box-shadow:0 22px 70px #0005}
+  .case-head{position:sticky;top:0;background:#7f1d1d;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+  .case-head h2{font-size:18px;margin:0}.case-close{border:0;background:#fff2;color:#fff;border-radius:8px;font-size:22px;padding:2px 10px;cursor:pointer}
+  .case-info{padding:12px 18px;background:#fff7ed;color:#7c2d12;font-size:13px}.case-body{padding:0 18px 18px}
+  .case-table{width:100%;border-collapse:collapse;font-size:13px}.case-table th,.case-table td{padding:9px 7px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
+  .case-table th{position:sticky;top:52px;background:#fff;color:#7f1d1d}.case-slow{color:#b91c1c;font-weight:700}.case-ok{color:#15803d;font-weight:700}
+  .event{display:inline-block;margin:1px 3px 1px 0;padding:2px 6px;border-radius:10px;background:#f1f5f9;white-space:nowrap}
+  @media print{.case-modal{display:none!important}}
+</style>
 </head>
 
 {#- โดนัท SVG: items = [{label,value,pct,color}] -#}
@@ -217,7 +229,7 @@
         <table class="t tri">
           <tr><th>ระดับ</th><th>ราย</th><th>รอพบแพทย์</th><th>เป้าหมาย</th><th>Admit/Refer</th></tr>
           {% for it in d.triage['items'] %}
-          <tr>
+          <tr class="triage-row" data-level="{{ it.level }}" tabindex="0" title="กดเพื่อวิเคราะห์เคสที่รอพบแพทย์นาน">
             <td class="l"><span class="lvl" style="background:{{ it.color }}">{{ it.level }}</span>{{ it.name }}</td>
             <td>{{ it.value }}<span class="sub">{{ it.pct }}%</span></td>
             <td><span class="pp {{ it.status }}">{{ it.d2d if it.d2d is not none else '–' }}{{ ' นาที' if it.d2d is not none }}</span>
@@ -581,5 +593,57 @@
   </div>
 
 </div>
+
+<div id="triageCaseModal" class="case-modal" hidden aria-modal="true" role="dialog" aria-labelledby="caseTitle">
+  <div class="case-dialog">
+    <div class="case-head"><h2 id="caseTitle">วิเคราะห์ Triage &amp; Door-to-doctor</h2><button class="case-close" type="button" aria-label="ปิด">×</button></div>
+    <div id="caseInfo" class="case-info">กำลังโหลด…</div>
+    <div class="case-body"><table class="case-table">
+      <thead><tr><th>รหัสเคส</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr></thead>
+      <tbody id="caseRows"></tbody>
+    </table></div>
+  </div>
+</div>
+<script>
+(function () {
+  var modal=document.getElementById('triageCaseModal'), info=document.getElementById('caseInfo'), rows=document.getElementById('caseRows');
+  if(!modal) return;
+  function esc(v){var d=document.createElement('div');d.textContent=v==null?'–':String(v);return d.innerHTML}
+  function eventTag(label,v){return v==null?'':'<span class="event">'+esc(label)+' +'+esc(v)+' นาที</span>'}
+  function close(){modal.hidden=true;rows.innerHTML=''}
+  modal.querySelector('.case-close').addEventListener('click',close);
+  modal.addEventListener('click',function(e){if(e.target===modal)close()});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
+  function openLevel(level){
+    modal.hidden=false;info.textContent='กำลังโหลดข้อมูลระดับ '+level+'…';rows.innerHTML='';
+    var p=new URLSearchParams(location.search);p.set('level',level);
+    fetch('/api/triage-cases.json?'+p.toString(),{credentials:'same-origin',cache:'no-store'}).then(function(r){
+      if(r.status===401)throw {login:true};if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
+    }).then(function(d){
+      document.getElementById('caseTitle').textContent='Triage '+d.level+' · '+d.name;
+      info.innerHTML='เรียงเคสที่รอนานที่สุดก่อน · เป้าหมาย <b>'+esc(d.target)+'</b> · แสดงสูงสุด 200 เคส'
+        +' · ไม่มีชื่อ HN VN เลขบัตร ที่อยู่ หรือวันเกิด รหัสเคสสร้างจากรหัสลับของระบบ';
+      if(!d.items.length){rows.innerHTML='<tr><td colspan="6">ไม่พบข้อมูล</td></tr>';return}
+      rows.innerHTML=d.items.map(function(x){
+        var slow=x.d2d!=null&&x.d2d>x.target;
+        var ev=eventTag('เริ่มตรวจ',x.events.start_min)+eventTag('Lab',x.events.lab_min)
+          +eventTag('X-ray',x.events.xray_min)+eventTag('ยา',x.events.drug_min)+eventTag('รายงานแพทย์',x.events.hpi_min);
+        return '<tr><td><code>'+esc(x.case_id)+'</code></td><td>'+esc(x.arrived)+'</td>'
+          +'<td>'+esc(x.age_group)+' · '+esc(x.sex)+'</td><td><b>'+esc(x.dx_code)+'</b><br>'+esc(x.dx_name)+'</td>'
+          +'<td class="'+(slow?'case-slow':'case-ok')+'">'+(x.d2d==null?'ไม่มีเวลาบันทึก':esc(x.d2d)+' นาที')+'</td>'
+          +'<td>'+(ev||'ไม่มีหลักฐานเวลา')+'</td></tr>';
+      }).join('');
+    }).catch(function(e){
+      info.innerHTML=e&&e.login
+        ?'ข้อมูลนี้ป้องกันด้วยรหัสภายใน กรุณา <a href="/nurse/login" target="_blank" rel="noopener"><b>เข้าสู่ระบบ</b></a> แล้วกลับมากดอีกครั้ง'
+        :'โหลดข้อมูลไม่สำเร็จ กรุณาตรวจ Logs ของ container';
+    });
+  }
+  document.querySelectorAll('.triage-row').forEach(function(tr){
+    tr.addEventListener('click',function(){openLevel(tr.dataset.level)});
+    tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openLevel(tr.dataset.level)}});
+  });
+})();
+</script>
 </body>
 </html>
