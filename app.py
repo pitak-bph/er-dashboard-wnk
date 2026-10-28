@@ -165,6 +165,31 @@ def api_data():
     return jsonify(queries.build(d1, d2, shift))
 
 
+@app.post("/api/triage-login")
+def api_triage_login():
+    """เข้าสู่ระบบจาก popup โดยไม่เปลี่ยนหน้า"""
+    response = None
+    if not NP_PASS_HASH:
+        response = (jsonify({"error": "login_disabled"}), 403)
+    else:
+        ip = _client_ip()
+        fails = _np_fail.get(ip, NP_FAIL_WINDOW) or 0
+        if fails >= NP_MAX_FAIL:
+            response = (jsonify({"error": "too_many_attempts"}), 429)
+        elif check_password_hash(NP_PASS_HASH, request.form.get("passcode", "")):
+            session.clear()
+            session.permanent = True
+            session["np"] = _NP_TAG
+            response = (jsonify({"ok": True}), 200)
+        else:
+            _np_fail.set(ip, fails + 1)
+            time.sleep(1)
+            response = (jsonify({"error": "invalid_password"}), 401)
+    resp, status = response
+    resp.headers["Cache-Control"] = "no-store, private"
+    return resp, status
+
+
 @app.route("/api/triage-cases.json")
 def api_triage_cases():
     """รายละเอียดรายเคสแบบใช้นามแฝง; ปิดไว้จนกว่าจะผ่านรหัสรายงานภายใน"""
