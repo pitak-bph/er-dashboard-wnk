@@ -165,11 +165,11 @@
           <div class="v">{{ k.d2d }}</div><div class="u">นาที · บันทึก {{ k.d2d_cover }}%</div>
           {{ delta(k.d2d_delta) }}
         </div>
-        <div class="kpi g-purple"><span class="e">🔁</span>
+        <button type="button" class="kpi g-purple revisit-drill" style="border:0;text-align:inherit;cursor:pointer" title="กดเพื่อดูรายละเอียด Revisit"><span class="e">🔁</span>
           <div class="l">กลับมา ER ซ้ำ<small>Revisit ≤ 48 ชม. · ไม่นับ Z / นัด</small></div>
-          <div class="v">{{ k.revisit_rate }}%</div><div class="u">{{ k.revisit }} ราย</div>
+          <div class="v">{{ k.revisit_rate }}%</div><div class="u">{{ k.revisit }} ราย · กดดูรายละเอียด</div>
           {{ delta(k.revisit_delta) }}
-        </div>
+        </button>
       </div>
     </div>
   </section>
@@ -600,14 +600,14 @@
     <div class="case-head"><h2 id="caseTitle">วิเคราะห์ Triage &amp; Door-to-doctor</h2><button class="case-close" type="button" aria-label="ปิด">×</button></div>
     <div id="caseInfo" class="case-info">กำลังโหลด…</div>
     <div class="case-body"><table class="case-table">
-      <thead><tr><th>HN</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr></thead>
+      <thead id="caseHead"><tr><th>HN</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr></thead>
       <tbody id="caseRows"></tbody>
     </table></div>
   </div>
 </div>
 <script>
 (function () {
-  var modal=document.getElementById('triageCaseModal'), info=document.getElementById('caseInfo'), rows=document.getElementById('caseRows');
+  var modal=document.getElementById('triageCaseModal'), info=document.getElementById('caseInfo'), rows=document.getElementById('caseRows'), head=document.getElementById('caseHead');
   if(!modal) return;
   function esc(v){var d=document.createElement('div');d.textContent=v==null?'–':String(v);return d.innerHTML}
   function eventTag(label,v){return v==null?'':'<span class="event">'+esc(label)+' +'+esc(v)+' นาที</span>'}
@@ -617,6 +617,7 @@
   document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
   function openLevel(level){
     modal.hidden=false;info.textContent='กำลังโหลดข้อมูลระดับ '+level+'…';rows.innerHTML='';
+    head.innerHTML='<tr><th>HN</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr>';
     var p=new URLSearchParams(location.search);p.set('level',level);
     fetch('/api/triage-cases.json?'+p.toString(),{credentials:'same-origin',cache:'no-store'}).then(function(r){
       if(r.status===401)throw {login:true};if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
@@ -664,6 +665,34 @@
       });
     });
   }
+  function openRevisit(){
+    modal.hidden=false;rows.innerHTML='';info.textContent='กำลังโหลดข้อมูล Revisit 48 ชั่วโมง…';
+    head.innerHTML='<tr><th>HN</th><th>Visit เดิม</th><th>กลับมาซ้ำ</th><th>ข้อมูลทั่วไป</th><th>เปรียบเทียบการรักษา</th><th>จุดทบทวน</th></tr>';
+    var p=new URLSearchParams(location.search);
+    fetch('/api/revisit-cases.json?'+p.toString(),{credentials:'same-origin',cache:'no-store'}).then(function(r){
+      if(r.status===401)throw {login:true};if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
+    }).then(function(d){
+      document.getElementById('caseTitle').textContent='Revisit ภายใน 48 ชั่วโมง';
+      info.textContent='เปรียบเทียบ visit เดิมกับครั้งกลับมา · แสดงสูงสุด 200 คู่ visit · ไม่มีชื่อ เลขบัตร ที่อยู่ หรือวันเกิด';
+      if(!d.items.length){rows.innerHTML='<tr><td colspan="6">ไม่พบ Revisit ในช่วงที่เลือก</td></tr>';return}
+      rows.innerHTML=d.items.map(function(x){
+        var flags=(x.flags||[]).map(function(f){return '<span class="event">'+esc(f)+'</span>'}).join('');
+        return '<tr><td><code>'+esc(x.hn)+'</code></td>'
+          +'<td>'+esc(x.previous_at)+'<br>Triage '+esc(x.previous_level)+'<br><b>'+esc(x.previous_dx)+'</b> '+esc(x.previous_dx_name)+'<br>'+esc(x.previous_disposition)+'</td>'
+          +'<td>'+esc(x.returned_at)+'<br><b>'+esc(x.hours)+' ชั่วโมง</b></td>'
+          +'<td>'+(x.age==null?'ไม่ระบุอายุ':esc(x.age)+' ปี')+' · '+esc(x.sex)+'</td>'
+          +'<td>Triage '+esc(x.current_level)+'<br><b>'+esc(x.current_dx)+'</b> '+esc(x.current_dx_name)+'<br>'+esc(x.current_disposition)+'</td>'
+          +'<td>'+(x.d2d==null?'D2D ไม่มีข้อมูล':'D2D '+esc(x.d2d)+' นาที')+'<br>'+(flags||'ไม่มีธงเตือน')+'</td></tr>';
+      }).join('');
+    }).catch(function(e){
+      if(!(e&&e.login)){info.textContent='โหลดข้อมูลไม่สำเร็จ กรุณาตรวจ Logs ของ container';return}
+      info.innerHTML='<form id="revisitLoginForm" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><label style="display:grid;gap:4px"><span>รหัสผ่านสำหรับดูข้อมูลผู้ป่วย</span><input id="revisitPasscode" type="password" autocomplete="current-password" required style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px"></label><button type="submit" style="padding:9px 14px;border:0;border-radius:8px;background:#7f1d1d;color:#fff;cursor:pointer">เข้าสู่ระบบ</button><span id="revisitLoginError"></span></form>';
+      var form=document.getElementById('revisitLoginForm'),pass=document.getElementById('revisitPasscode');pass.focus();
+      form.addEventListener('submit',function(ev){ev.preventDefault();var error=document.getElementById('revisitLoginError'),button=form.querySelector('button');button.disabled=true;error.textContent='กำลังตรวจสอบ…';fetch('/api/triage-login',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({passcode:pass.value}).toString()}).then(function(r){if(r.ok)return r.json();return r.json().then(function(d){throw d})}).then(openRevisit).catch(function(err){button.disabled=false;pass.value='';pass.focus();error.textContent=err&&err.error==='too_many_attempts'?'ใส่รหัสผิดหลายครั้ง กรุณารอ 15 นาที':'รหัสผ่านไม่ถูกต้อง';});});
+    });
+  }
+  var revisitButton=document.querySelector('.revisit-drill');
+  if(revisitButton)revisitButton.addEventListener('click',openRevisit);
   document.querySelectorAll('.triage-row').forEach(function(tr){
     tr.addEventListener('click',function(){openLevel(tr.dataset.level)});
     tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openLevel(tr.dataset.level)}});
