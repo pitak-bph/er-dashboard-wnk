@@ -373,7 +373,8 @@
   <div class="appinfo">
     <span><b>ER Dashboard</b> เวอร์ชัน {{ version }} · รายงานพยาบาลตรวจแทนแพทย์</span>
     <span>📞 ติดต่อ: {{ contact }}</span>
-    {% if dev_contact and dev_contact != contact %}<span>🛠 ผู้พัฒนา: {{ dev_contact }}</span>{% endif %}
+    {% if dev_contact %}<span>🛠 ผู้พัฒนาต้นฉบับ: {{ dev_contact }}</span>{% endif %}
+    {% if maintainer %}<span>🔧 ปรับปรุงเพิ่มเติม: {{ maintainer }}</span>{% endif %}
   </div>
 
 </div>
