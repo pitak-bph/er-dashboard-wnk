@@ -44,6 +44,12 @@
     </form>
     {% endif %}
     <a class="back" href="{{ url_for('dashboard') }}">← กลับ ER Dashboard</a>
+    <div class="appinfo" style="margin-top:18px;display:grid;gap:4px;text-align:left;font-size:12px">
+      <span><b>ER Dashboard</b> เวอร์ชัน {{ version }}</span>
+      <span>📞 ติดต่อ: {{ contact }}</span>
+      {% if dev_contact %}<span>🛠 ผู้พัฒนาต้นฉบับ: {{ dev_contact }}</span>{% endif %}
+      {% if maintainer %}<span>🔧 ปรับปรุงเพิ่มเติม: {{ maintainer }}</span>{% endif %}
+    </div>
   </div>
 </div>
 </body>
