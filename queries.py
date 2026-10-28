@@ -96,8 +96,9 @@ def _no_z(alias):
 
 
 def _no_z480(alias):
-    """ไม่นับ visit ที่มี Z48.0/Z480 ใน diagnosis ทุกประเภท"""
+    """ไม่นับ visit ที่มี Z48.0/Z480 เป็นโรคหลัก (diagtype 1)"""
     return (f"not exists(select 1 from ovstdiag z480 where z480.vn = {alias}.vn "
+            f"and z480.diagtype = '1' "
             f"and replace(upper(ifnull(z480.icd10, '')), '.', '') = 'Z480')")
 
 
