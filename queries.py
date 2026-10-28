@@ -333,6 +333,80 @@ def triage_cases(d1, d2, shift, level, limit=200):
     return {"level": level, "name": LEVEL_NAME[level], "target": D2D_TARGET_LABEL[level],
             "items": out, "limited": len(out) >= limit}
 
+
+def revisit_cases(d1, d2, shift, limit=200):
+    """คู่ visit เดิมและครั้งกลับมาซ้ำภายใน 48 ชม. สำหรับทบทวนหลังล็อกอิน"""
+    limit = max(1, min(int(limit), 200))
+    p_level = "coalesce(least(pet.export_code, 5), 5)"
+    p_dch = DCH.replace("e.", "p.")
+    rows = fetch(f"""
+        select o.hn, e.enter_er_time returned_at, p.enter_er_time previous_at,
+          round(timestampdiff(minute, p.enter_er_time, e.enter_er_time) / 60, 1) hours,
+          vs.age_y age,
+          case pt.sex when '1' then 'ชาย' when '2' then 'หญิง' else 'ไม่ระบุ' end sex,
+          {LEVEL} current_level, {p_level} previous_level,
+          {DCH} current_dch, {p_dch} previous_dch,
+          (select d.icd10 from ovstdiag d where d.vn = e.vn and d.diagtype = '1' limit 1) current_dx,
+          (select d.icd10 from ovstdiag d where d.vn = p.vn and d.diagtype = '1' limit 1) previous_dx,
+          (select ifnull(nullif(c.tname, ''), c.name) from ovstdiag d
+             left join icd101 c on c.code = d.icd10
+             where d.vn = e.vn and d.diagtype = '1' limit 1) current_dx_name,
+          (select ifnull(nullif(c.tname, ''), c.name) from ovstdiag d
+             left join icd101 c on c.code = d.icd10
+             where d.vn = p.vn and d.diagtype = '1' limit 1) previous_dx_name,
+          {D2D} d2d
+        {FROM_ST}
+          join patient pt on pt.hn = o.hn
+          left join vn_stat vs on vs.vn = e.vn
+          join ovst po on po.hn = o.hn
+          join er_regist p on p.vn = po.vn and p.vn <> e.vn
+          left join er_emergency_type pet on pet.er_emergency_type = p.er_emergency_type
+        {_where(d1, d2, shift)}
+          and ifnull(p.er_pt_type, 0) <> 4
+          and p.er_emergency_type is not null
+          and ifnull(po.ovstist, '') <> '02'
+          and not exists(select 1 from ovstdiag z where z.vn = p.vn
+                         and z.diagtype = '1' and z.icd10 like 'Z%')
+          and p.enter_er_time < e.enter_er_time
+          and p.enter_er_time >= e.enter_er_time - interval 48 hour
+          and p.enter_er_time = (
+            select max(p2.enter_er_time)
+            from ovst po2 join er_regist p2 on p2.vn = po2.vn
+            where po2.hn = o.hn and p2.vn <> e.vn
+              and ifnull(p2.er_pt_type, 0) <> 4
+              and p2.er_emergency_type is not null
+              and ifnull(po2.ovstist, '') <> '02'
+              and not exists(select 1 from ovstdiag z2 where z2.vn = p2.vn
+                             and z2.diagtype = '1' and z2.icd10 like 'Z%')
+              and p2.enter_er_time < e.enter_er_time
+              and p2.enter_er_time >= e.enter_er_time - interval 48 hour)
+        order by returned_at desc limit {limit}""")
+    dch_label = {1: "กลับบ้าน", 2: "Refer", 3: "Admit", 4: "อื่น ๆ", 5: "สังเกตอาการ"}
+    out = []
+    for r in rows:
+        old_dx, new_dx = r.get("previous_dx") or "–", r.get("current_dx") or "–"
+        old_lv, new_lv = int(num(r.get("previous_level"), 5)), int(num(r.get("current_level"), 5))
+        new_dch = int(num(r.get("current_dch"), 0))
+        flags = []
+        if old_dx[:3] != new_dx[:3]:
+            flags.append("DX เปลี่ยน")
+        if new_lv < old_lv:
+            flags.append("ระดับรุนแรงขึ้น")
+        if new_dch in (2, 3):
+            flags.append("กลับมาแล้ว " + dch_label[new_dch])
+        out.append({
+            "hn": str(r["hn"]), "age": (None if r.get("age") is None else int(num(r["age"]))),
+            "sex": r["sex"], "previous_at": _dt(r["previous_at"]).isoformat(sep=" ", timespec="minutes"),
+            "returned_at": _dt(r["returned_at"]).isoformat(sep=" ", timespec="minutes"),
+            "hours": num(r["hours"]), "previous_level": old_lv, "current_level": new_lv,
+            "previous_dx": old_dx, "previous_dx_name": r.get("previous_dx_name") or "ยังไม่ลงรหัส",
+            "current_dx": new_dx, "current_dx_name": r.get("current_dx_name") or "ยังไม่ลงรหัส",
+            "previous_disposition": dch_label.get(int(num(r.get("previous_dch"), 0)), "ไม่ระบุ"),
+            "current_disposition": dch_label.get(new_dch, "ไม่ระบุ"),
+            "d2d": (None if r.get("d2d") in (None, "") else num(r["d2d"])), "flags": flags,
+        })
+    return {"items": out, "limited": len(out) >= limit}
+
 # ------------------------------------------------------ 4. Disposition
 
 #: er_dch_type ของ HOSxP — เสียชีวิต (4, 6) รวมใน "อื่น ๆ" ตามที่ตกลงไว้ว่าไม่แสดงบนแดชบอร์ด
