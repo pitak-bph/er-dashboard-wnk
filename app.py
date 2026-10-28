@@ -168,7 +168,7 @@ def api_data():
 @app.route("/api/triage-cases.json")
 def api_triage_cases():
     """รายละเอียดรายเคสแบบใช้นามแฝง; ปิดไว้จนกว่าจะผ่านรหัสรายงานภายใน"""
-    if not _np_ok():
+    if not (NP_PASS_HASH and session.get("np") == _NP_TAG):
         return jsonify({"error": "login_required", "login": url_for("nurse_login")}), 401
     d1, d2, shift = _params()
     try:
@@ -178,11 +178,6 @@ def api_triage_cases():
     if level not in range(1, 6):
         return jsonify({"error": "invalid_level"}), 400
     data = queries.triage_cases(d1, d2, shift, level)
-    for item in data["items"]:
-        vn = item.pop("_vn")
-        item["case_id"] = hashlib.sha256(
-            (app.secret_key + ":triage:" + vn).encode()
-        ).hexdigest()[:10].upper()
     response = jsonify(data)
     response.headers["Cache-Control"] = "no-store, private"
     return response
