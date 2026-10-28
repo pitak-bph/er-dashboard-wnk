@@ -59,8 +59,8 @@ class PrefixMiddleware:
 app = Flask(__name__)
 app.wsgi_app = PrefixMiddleware(app.wsgi_app)
 
-VERSION = os.getenv("ER_APP_VERSION", "2.3.4")
-ICON_VERSION = "1"
+VERSION = os.getenv("ER_APP_VERSION", "2.3.5")
+ICON_VERSION = "2"
 DEV_CONTACT = "นายเผด็จชัย สิงหล โรงพยาบาลวังน้ำเขียว"
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
