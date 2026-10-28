@@ -59,7 +59,7 @@ class PrefixMiddleware:
 app = Flask(__name__)
 app.wsgi_app = PrefixMiddleware(app.wsgi_app)
 
-VERSION = os.getenv("ER_APP_VERSION", "2.1.0")
+VERSION = os.getenv("ER_APP_VERSION", "2.2.0")
 ICON_VERSION = "1"
 DEV_CONTACT = "นายเผด็จชัย สิงหล โรงพยาบาลวังน้ำเขียว"
 
@@ -204,6 +204,17 @@ def api_triage_cases():
         return jsonify({"error": "invalid_level"}), 400
     data = queries.triage_cases(d1, d2, shift, level)
     response = jsonify(data)
+    response.headers["Cache-Control"] = "no-store, private"
+    return response
+
+
+@app.route("/api/revisit-cases.json")
+def api_revisit_cases():
+    """รายละเอียด Revisit 48 ชม. สำหรับ session ที่ล็อกอินแล้ว"""
+    if not (NP_PASS_HASH and session.get("np") == _NP_TAG):
+        return jsonify({"error": "login_required"}), 401
+    d1, d2, shift = _params()
+    response = jsonify(queries.revisit_cases(d1, d2, shift))
     response.headers["Cache-Control"] = "no-store, private"
     return response
 
