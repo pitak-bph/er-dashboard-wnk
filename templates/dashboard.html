@@ -635,9 +635,33 @@
           +'<td>'+(ev||'ไม่มีหลักฐานเวลา')+'</td></tr>';
       }).join('');
     }).catch(function(e){
-      info.innerHTML=e&&e.login
-        ?'ข้อมูลนี้ป้องกันด้วยรหัสภายใน กรุณา <a href="/nurse/login" target="_blank" rel="noopener"><b>เข้าสู่ระบบ</b></a> แล้วกลับมากดอีกครั้ง'
-        :'โหลดข้อมูลไม่สำเร็จ กรุณาตรวจ Logs ของ container';
+      if(!(e&&e.login)){
+        info.textContent='โหลดข้อมูลไม่สำเร็จ กรุณาตรวจ Logs ของ container';
+        return;
+      }
+      info.innerHTML='<form id="triageLoginForm" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">'
+        +'<label style="display:grid;gap:4px"><span>รหัสผ่านสำหรับดูข้อมูลผู้ป่วย</span>'
+        +'<input id="triagePasscode" type="password" autocomplete="current-password" required '
+        +'style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px"></label>'
+        +'<button type="submit" style="padding:9px 14px;border:0;border-radius:8px;background:#7f1d1d;color:#fff;cursor:pointer">เข้าสู่ระบบ</button>'
+        +'<span id="triageLoginError"></span></form>';
+      var form=document.getElementById('triageLoginForm'), pass=document.getElementById('triagePasscode');
+      pass.focus();
+      form.addEventListener('submit',function(ev){
+        ev.preventDefault();
+        var error=document.getElementById('triageLoginError'), button=form.querySelector('button');
+        button.disabled=true;error.textContent='กำลังตรวจสอบ…';
+        fetch('/api/triage-login',{method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:new URLSearchParams({passcode:pass.value}).toString()
+        }).then(function(r){
+          if(r.ok)return r.json();
+          return r.json().then(function(d){throw d});
+        }).then(function(){openLevel(level)}).catch(function(err){
+          button.disabled=false;pass.value='';pass.focus();
+          error.textContent=err&&err.error==='too_many_attempts'?'ใส่รหัสผิดหลายครั้ง กรุณารอ 15 นาที':'รหัสผ่านไม่ถูกต้อง';
+        });
+      });
     });
   }
   document.querySelectorAll('.triage-row').forEach(function(tr){
