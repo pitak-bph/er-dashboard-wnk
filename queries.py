@@ -365,12 +365,13 @@ def revisit_cases(d1, d2, shift, limit=200):
           join er_regist p on p.vn = po.vn and p.vn <> e.vn
           left join er_emergency_type pet on pet.er_emergency_type = p.er_emergency_type
         {_where(d1, d2, shift)}
-          and {_no_z('e')}
+          and {ELIG}
           and ifnull(p.er_pt_type, 0) <> 4
           and p.er_emergency_type is not null
           and ifnull(po.ovstist, '') <> '02'
           and not exists(select 1 from ovstdiag z where z.vn = p.vn
                          and z.diagtype = '1' and z.icd10 like 'Z%')
+          and po.vstdate between e.vstdate - interval 2 day and e.vstdate
           and p.enter_er_time < e.enter_er_time
           and p.enter_er_time >= e.enter_er_time - interval 48 hour
           and p.enter_er_time = (
@@ -382,6 +383,7 @@ def revisit_cases(d1, d2, shift, limit=200):
               and ifnull(po2.ovstist, '') <> '02'
               and not exists(select 1 from ovstdiag z2 where z2.vn = p2.vn
                              and z2.diagtype = '1' and z2.icd10 like 'Z%')
+              and po2.vstdate between e.vstdate - interval 2 day and e.vstdate
               and p2.enter_er_time < e.enter_er_time
               and p2.enter_er_time >= e.enter_er_time - interval 48 hour)
         order by returned_at desc limit {limit}""")
