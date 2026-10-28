@@ -24,6 +24,7 @@
   .case-table{width:100%;border-collapse:collapse;font-size:13px}.case-table th,.case-table td{padding:9px 7px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
   .case-table th{position:sticky;top:52px;background:#fff;color:#7f1d1d}.case-slow{color:#b91c1c;font-weight:700}.case-ok{color:#15803d;font-weight:700}
   .event{display:inline-block;margin:1px 3px 1px 0;padding:2px 6px;border-radius:10px;background:#f1f5f9;white-space:nowrap}
+.cc-detail{margin-top:7px}.cc-detail summary{cursor:pointer;color:#7f1d1d;font-weight:700}.cc-box{margin-top:6px;padding:8px;border-radius:8px;background:#fff7ed;max-width:380px;white-space:normal;overflow-wrap:anywhere}.cc-box b{color:#7f1d1d}
   @media print{.case-modal{display:none!important}}
 </style>
 </head>
@@ -673,16 +674,18 @@
       if(r.status===401)throw {login:true};if(!r.ok)throw new Error('HTTP '+r.status);return r.json();
     }).then(function(d){
       document.getElementById('caseTitle').textContent='Revisit ภายใน 48 ชั่วโมง';
-      info.textContent='เปรียบเทียบ visit เดิมกับครั้งกลับมา · แสดงสูงสุด 200 คู่ visit · ไม่มีชื่อ เลขบัตร ที่อยู่ หรือวันเกิด';
+      info.textContent='เปรียบเทียบ visit เดิมกับครั้งกลับมา · แสดงสูงสุด 200 คู่ visit · CC อาจมีข้อมูลอ่อนไหว ควรใช้เพื่อทบทวนการรักษาเท่านั้น · ไม่มีชื่อ เลขบัตร ที่อยู่ หรือวันเกิด';
       if(!d.items.length){rows.innerHTML='<tr><td colspan="6">ไม่พบ Revisit ในช่วงที่เลือก</td></tr>';return}
       rows.innerHTML=d.items.map(function(x){
         var flags=(x.flags||[]).map(function(f){return '<span class="event">'+esc(f)+'</span>'}).join('');
+        var oldCc=x.previous_cc||'ไม่มีข้อมูล CC',newCc=x.current_cc||'ไม่มีข้อมูล CC';
+        var cc='<details class="cc-detail"><summary>ดู CC ครั้งก่อน / ครั้งกลับมา</summary><div class="cc-box"><b>ครั้งก่อน:</b> '+esc(oldCc)+'<br><b>ครั้งกลับมา:</b> '+esc(newCc)+'</div></details>';
         return '<tr><td><code>'+esc(x.hn)+'</code></td>'
           +'<td>'+esc(x.previous_at)+'<br>Triage '+esc(x.previous_level)+'<br><b>'+esc(x.previous_dx)+'</b> '+esc(x.previous_dx_name)+'<br>'+esc(x.previous_disposition)+'</td>'
           +'<td>'+esc(x.returned_at)+'<br><b>'+esc(x.hours)+' ชั่วโมง</b></td>'
           +'<td>'+(x.age==null?'ไม่ระบุอายุ':esc(x.age)+' ปี')+' · '+esc(x.sex)+'</td>'
           +'<td>Triage '+esc(x.current_level)+'<br><b>'+esc(x.current_dx)+'</b> '+esc(x.current_dx_name)+'<br>'+esc(x.current_disposition)+'</td>'
-          +'<td>'+(x.d2d==null?'D2D ไม่มีข้อมูล':'D2D '+esc(x.d2d)+' นาที')+'<br>'+(flags||'ไม่มีธงเตือน')+'</td></tr>';
+          +'<td>'+(x.d2d==null?'D2D ไม่มีข้อมูล':'D2D '+esc(x.d2d)+' นาที')+'<br>'+(flags||'ไม่มีธงเตือน')+cc+'</td></tr>';
       }).join('');
     }).catch(function(e){
       if(!(e&&e.login)){info.textContent='โหลดข้อมูลไม่สำเร็จ กรุณาตรวจ Logs ของ container';return}
