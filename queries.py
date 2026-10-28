@@ -354,7 +354,9 @@ def revisit_cases(d1, d2, shift, limit=200):
           (select ifnull(nullif(c.tname, ''), c.name) from ovstdiag d
              left join icd101 c on c.code = d.icd10
              where d.vn = p.vn and d.diagtype = '1' limit 1) previous_dx_name,
-          {D2D} d2d
+          {D2D} d2d,
+          (select os.cc from opdscreen os where os.vn = p.vn limit 1) previous_cc,
+          (select os.cc from opdscreen os where os.vn = e.vn limit 1) current_cc
         {FROM_ST}
           join patient pt on pt.hn = o.hn
           left join vn_stat vs on vs.vn = e.vn
@@ -403,7 +405,10 @@ def revisit_cases(d1, d2, shift, limit=200):
             "current_dx": new_dx, "current_dx_name": r.get("current_dx_name") or "ยังไม่ลงรหัส",
             "previous_disposition": dch_label.get(int(num(r.get("previous_dch"), 0)), "ไม่ระบุ"),
             "current_disposition": dch_label.get(new_dch, "ไม่ระบุ"),
-            "d2d": (None if r.get("d2d") in (None, "") else num(r["d2d"])), "flags": flags,
+            "d2d": (None if r.get("d2d") in (None, "") else num(r["d2d"])),
+            "previous_cc": re.sub(r"\s+", " ", str(r.get("previous_cc") or "")).strip(),
+            "current_cc": re.sub(r"\s+", " ", str(r.get("current_cc") or "")).strip(),
+            "flags": flags,
         })
     return {"items": out, "limited": len(out) >= limit}
 
