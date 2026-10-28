@@ -298,7 +298,7 @@ def triage_cases(d1, d2, shift, level, limit=200):
     limit = max(1, min(int(limit), 200))
     w = f"{_where(d1, d2, shift)} and {LEVEL} = {level}"
     rows = fetch(f"""
-        select e.vn, e.enter_er_time arrived, {D2D} d2d,
+        select o.hn, e.enter_er_time arrived, {D2D} d2d,
           {_SOURCES[0]} start_min, {_SOURCES[1]} lab_min,
           {_SOURCES[2]} xray_min, {_SOURCES[3]} drug_min,
           vs.age_y age,
@@ -323,7 +323,7 @@ def triage_cases(d1, d2, shift, level, limit=200):
         candidates = [x for x in [r.get("d2d"), hpi_min] if x not in (None, "")]
         d2d = min(num(x) for x in candidates) if candidates else None
         out.append({
-            "_vn": str(r["vn"]), "arrived": arrived.isoformat(sep=" ", timespec="minutes"),
+            "hn": str(r["hn"]), "arrived": arrived.isoformat(sep=" ", timespec="minutes"),
             "age": (None if r.get("age") is None else int(num(r["age"]))), "sex": r["sex"],
             "dx_code": r.get("dx_code") or "–", "dx_name": r.get("dx_name") or "ยังไม่ลงรหัส",
             "d2d": d2d, "target": D2D_TARGET[level],
