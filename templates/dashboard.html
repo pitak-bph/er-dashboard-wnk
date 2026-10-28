@@ -600,7 +600,7 @@
     <div class="case-head"><h2 id="caseTitle">วิเคราะห์ Triage &amp; Door-to-doctor</h2><button class="case-close" type="button" aria-label="ปิด">×</button></div>
     <div id="caseInfo" class="case-info">กำลังโหลด…</div>
     <div class="case-body"><table class="case-table">
-      <thead><tr><th>รหัสเคส</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr></thead>
+      <thead><tr><th>HN</th><th>วัน–เวลามาถึง</th><th>ข้อมูลทั่วไป</th><th>โรคหลัก</th><th>Door-to-doctor</th><th>หลักฐานลำดับเวลา</th></tr></thead>
       <tbody id="caseRows"></tbody>
     </table></div>
   </div>
@@ -623,13 +623,13 @@
     }).then(function(d){
       document.getElementById('caseTitle').textContent='Triage '+d.level+' · '+d.name;
       info.innerHTML='เรียงเคสที่รอนานที่สุดก่อน · เป้าหมาย <b>'+esc(d.target)+'</b> · แสดงสูงสุด 200 เคส'
-        +' · ไม่มีชื่อ HN VN เลขบัตร ที่อยู่ หรือวันเกิด รหัสเคสสร้างจากรหัสลับของระบบ';
+        +' · แสดง HN เฉพาะผู้ที่ล็อกอินแล้ว · ไม่มีชื่อ เลขบัตร ที่อยู่ หรือวันเกิด';
       if(!d.items.length){rows.innerHTML='<tr><td colspan="6">ไม่พบข้อมูล</td></tr>';return}
       rows.innerHTML=d.items.map(function(x){
         var slow=x.d2d!=null&&x.d2d>x.target;
         var ev=eventTag('เริ่มตรวจ',x.events.start_min)+eventTag('Lab',x.events.lab_min)
           +eventTag('X-ray',x.events.xray_min)+eventTag('ยา',x.events.drug_min)+eventTag('รายงานแพทย์',x.events.hpi_min);
-        return '<tr><td><code>'+esc(x.case_id)+'</code></td><td>'+esc(x.arrived)+'</td>'
+        return '<tr><td><code>'+esc(x.hn)+'</code></td><td>'+esc(x.arrived)+'</td>'
           +'<td>'+(x.age==null?'ไม่ระบุอายุ':esc(x.age)+' ปี')+' · '+esc(x.sex)+'</td><td><b>'+esc(x.dx_code)+'</b><br>'+esc(x.dx_name)+'</td>'
           +'<td class="'+(slow?'case-slow':'case-ok')+'">'+(x.d2d==null?'ไม่มีเวลาบันทึก':esc(x.d2d)+' นาที')+'</td>'
           +'<td>'+(ev||'ไม่มีหลักฐานเวลา')+'</td></tr>';
