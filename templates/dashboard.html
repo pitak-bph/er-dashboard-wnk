@@ -68,9 +68,11 @@
 
 <body class="{{ 'print-mode' if print_mode }}">
 
-<form class="toolbar" method="get">
-  <label>ตั้งแต่ <input type="date" name="d1" value="{{ d.d1 }}"></label>
-  <label>ถึง <input type="date" name="d2" value="{{ d.d2 }}"></label>
+<form class="toolbar date-filter" method="get">
+  <label>ตั้งแต่ <input type="text" class="date-display" data-date-field="d1" value="{{ d.d1[8:10] }}/{{ d.d1[5:7] }}/{{ d.d1[:4] }}" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+  <input type="hidden" name="d1" value="{{ d.d1 }}">
+  <label>ถึง <input type="text" class="date-display" data-date-field="d2" value="{{ d.d2[8:10] }}/{{ d.d2[5:7] }}/{{ d.d2[:4] }}" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" autocomplete="off"></label>
+  <input type="hidden" name="d2" value="{{ d.d2 }}">
   <select name="shift">
     {% for k, v in d.shifts.items() %}
     <option value="{{ k }}" {{ 'selected' if d.shift == k }}>{{ v }}</option>
@@ -699,6 +701,25 @@
   document.querySelectorAll('.triage-row').forEach(function(tr){
     tr.addEventListener('click',function(){openLevel(tr.dataset.level)});
     tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openLevel(tr.dataset.level)}});
+  });
+})();
+</script>
+<script>
+(function(){
+  function syncDate(form,name){
+    var shown=form.querySelector('[data-date-field="'+name+'"]'),hidden=form.querySelector('input[name="'+name+'"]');
+    var m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(shown.value.trim());
+    if(!m){shown.setCustomValidity('กรุณากรอกวันที่รูปแบบ dd/mm/yyyy');shown.reportValidity();return false}
+    var iso=m[3]+'-'+m[2]+'-'+m[1],dt=new Date(iso+'T00:00:00');
+    if(dt.getFullYear()!==Number(m[3])||dt.getMonth()+1!==Number(m[2])||dt.getDate()!==Number(m[1])){
+      shown.setCustomValidity('วันที่ไม่ถูกต้อง');shown.reportValidity();return false
+    }
+    shown.setCustomValidity('');hidden.value=iso;return true
+  }
+  document.querySelectorAll('form.date-filter').forEach(function(form){
+    form.addEventListener('submit',function(e){
+      if(!syncDate(form,'d1')||!syncDate(form,'d2'))e.preventDefault();
+    });
   });
 })();
 </script>
