@@ -59,7 +59,7 @@ class PrefixMiddleware:
 app = Flask(__name__)
 app.wsgi_app = PrefixMiddleware(app.wsgi_app)
 
-VERSION = os.getenv("ER_APP_VERSION", "2.0.0")
+VERSION = os.getenv("ER_APP_VERSION", "2.1.0")
 ICON_VERSION = "1"
 DEV_CONTACT = "นายเผด็จชัย สิงหล โรงพยาบาลวังน้ำเขียว"
 
